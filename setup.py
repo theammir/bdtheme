@@ -11,7 +11,7 @@ setup(
     author="TheAmmiR",
     license="MIT",
     description="Console BeautifulDiscord theme manager",
-    version="0.0.3",
+    version="1.3.1",
     packages=find_packages(
         exclude=["themes", "venv"]),
     install_requires=requirements,
