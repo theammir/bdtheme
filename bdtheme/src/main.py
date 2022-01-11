@@ -1,8 +1,7 @@
 import argparse
 import os
-import shutil
 from .curses_app import download_app, browse_app
-from .themes import get_themes_dir
+from .themes import get_themes_dir, set_theme, get_themedir
 
 
 def scmd_init(args):
@@ -31,8 +30,7 @@ def scmd_browse(_):
 def scmd_set(args):
     if args.file:
         print("Installing " + args.file + " theme.")
-        shutil.copyfile(args.file, os.path.join(
-            get_themes_dir(), "__current.css"))
+        set_theme(args.file)
     else:
         browse_app()
 
@@ -42,6 +40,8 @@ def scmd_clear(_):
 
 
 def scmd_revert(_):
+    scmd_clear([])
+    os.remove(get_themedir())
     os.system("beaudis --revert")
 
 

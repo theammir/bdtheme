@@ -15,6 +15,8 @@ class Theme:
         :param url: str - theme page url
         :param likes: int - likes count
         :param views: int - views count
+        :param css: Callable - function to parse css
+        :param source: str{bd, vs} - website the theme is from
     """
 
     def __init__(self, name: str, **kwargs):
@@ -23,23 +25,25 @@ class Theme:
         self.url = kwargs.get("url")
         self.likes = kwargs.get("likes")
         self.views = kwargs.get("views")
+        self.css = kwargs.get("css")
+        self.source = kwargs.get("source")
 
     def __str__(self):
         return self.name
 
 
 class Paginator:
-    VSTHEMES_PAGESIZE = 25
-
-    def __init__(self, retrieve_new: Callable, *, pagesize: int):
+    def __init__(self, retrieve_new: Callable, *, pagesize: int, name: str):
         self.retrieve_new = retrieve_new
         self.pagesize = pagesize
 
         self.page = 0
-        self.vspage = 0
-        self._coll = self.retrieve_new(self.page)
+        self.parsepage = 1
+        self._coll = self.retrieve_new(self.parsepage)
 
         self.pages_cache = {}
+
+        self.name = name or "paginator"
 
     def next_page(self):
         if (cache := self.pages_cache.get(self.page + 1)):
@@ -50,17 +54,18 @@ class Paginator:
         remaining = self.pagesize
 
         while not remaining == 0:
-            self.vspage += 1
-            self._coll = self.retrieve_new(self.vspage)
-            if not self._coll:
-                if result:
-                    self.page += 1
-                return result
-
             page_part = self._coll[:remaining]
             result += page_part
-            remaining -= len(page_part)
             self._coll = self._coll[remaining:]
+            remaining -= len(page_part)
+
+            if not self._coll:
+                self.parsepage += 1
+                self._coll = self.retrieve_new(self.parsepage)
+                if not self._coll:
+                    if result:
+                        break
+                    return result
 
         if result:
             self.pages_cache[self.page + 1] = result
@@ -73,9 +78,13 @@ class Paginator:
             return cache
 
 
-def get_themes_dir():
-    themedir_path = os.path.normpath(os.path.join(
+def get_themedir():
+    return os.path.normpath(os.path.join(
         os.path.dirname(__file__), "..", ".themedir"))
+
+
+def get_themes_dir():
+    themedir_path = get_themedir()
     if os.path.exists(themedir_path):
         with open(themedir_path, "r", encoding="utf-8") as f:
             return f.read().strip()
@@ -92,6 +101,9 @@ def parse_vsthemes_list(page: int = 1) -> List[Theme]:
     base_url = 'https://vsthemes.org/en/skins/discord/page/{page}/'
 
     resp = rq.get(base_url.format(page=page), headers=USER_AGENT)
+    if not resp.ok:
+        return []
+
     bs = BS(resp.text, 'lxml')
 
     theme_elements = bs.find_all("div", {"class": "infiniteBlock"})
@@ -106,7 +118,7 @@ def parse_vsthemes_list(page: int = 1) -> List[Theme]:
         likes = int(likes.text.replace(" ", ""))
 
         result.append(Theme(name, img_url=img_url,
-                      url=theme_url, likes=likes, views=views))
+                      url=theme_url, likes=likes, views=views, css=parse_vsthemes_css, source="vs"))
 
     return result
 
@@ -120,10 +132,55 @@ def parse_vsthemes_css(url: str) -> Tuple[str, str]:
     return css_text.text
 
 
+def parse_better_list(page: int, pages: int = 10):
+    abbrevs = {"k": 1000, "m": 1000000}
+    base_url = "https://betterdiscord.app/Addon/GetApprovedAddons?type=theme&filter=&page={page}&pages={pages}&sort=popular&sortDirection=&tags=[]"
+
+    resp = rq.get(base_url.format(page=page,
+                  pages=pages), headers=USER_AGENT)
+    if not resp.ok:
+        return []
+
+    bs = BS(resp.text, 'lxml')
+
+    card_list = bs.find_all("a", {"class": "card-wrap"})
+    result = []
+    for el in card_list:
+        name = el.find("h3", {"class": "card-title"}).text
+        img_url = "https://betterdiscord.app" + el.find("img").get("src")
+        theme_url = "https://betterdiscord.app" + el.get("href")
+        views = el.find("div", {"id": "addon-downloads"}
+                        ).text.strip().replace(",", '')
+        likes = el.find("div", {"id": "addon-likes"}
+                        ).text.strip().replace(",", "")
+
+        views = int(float(views[:-1]) * abbrevs[views[-1].lower()
+                                                ]) if not views.isdigit() else int(views)
+        likes = int(float(likes[:-1]) * abbrevs[likes[-1].lower()
+                                                ]) if not likes.isdigit() else int(likes)
+
+        result.append(Theme(name, img_url=img_url,
+                      url=theme_url, likes=likes, views=views, css=parse_better_css, source="bd"))
+
+    return result
+
+
+def parse_better_css(url: str) -> None:
+    theme_resp = rq.get(url, headers=USER_AGENT)
+    bs = BS(theme_resp.text, 'lxml')
+
+    download_link = "https://betterdiscord.app" + \
+        bs.find("a", {"class": "btn-primary"}).get("href")
+    download_resp = rq.get(
+        download_link, headers=USER_AGENT, allow_redirects=True)
+
+    return download_resp.text
+
+
 def save_theme(theme: Theme) -> None:
     themes_dir = get_themes_dir()
-    theme_css = parse_vsthemes_css(theme.url)
+    theme_css = theme.css(theme.url)
     with open(os.path.join(themes_dir, f"{uuid.uuid4()}.css"), "a+", encoding="utf-8") as f:
-        f.write(f"/* <{theme.name}> */\n")
+        f.write(f"/* <{theme.name}> @ {theme.source} */\n")
         f.write("\n".join(list(filter(lambda i: not i.lower(
         ).startswith("//meta"), theme_css.split("\n")))))

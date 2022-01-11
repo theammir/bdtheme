@@ -5,3 +5,4 @@ themes/*
 .themedir
 venv/*
 .venv/*
+__pycache__/*
