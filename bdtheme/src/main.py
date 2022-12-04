@@ -6,17 +6,14 @@ from .themes import get_themes_dir, set_theme, get_themedir
 
 def scmd_init(args):
     themes_dir = None
-    if args.dir:
-        themes_dir = args.dir
-    else:
-        themes_dir = os.path.join(
-            os.path.dirname(__file__), "..", "themes")
+    themes_dir = args.dir or os.path.join(os.path.dirname(__file__), "..", "themes")
+
     themes_dir = os.path.normpath(themes_dir)
     with open(os.path.normpath(os.path.join(os.path.dirname(__file__), "..", '.themedir')), 'w') as f:
         f.write(themes_dir)
     path = os.path.join(themes_dir, "__current.css")
     path = os.path.normcase(path)
-    print("Initializing BeautifulDiscord at " + path)
+    print(f"Initializing BeautifulDiscord at {path}")
 
     os.makedirs(themes_dir, exist_ok=True)
 
@@ -29,7 +26,7 @@ def scmd_browse(_):
 
 def scmd_set(args):
     if args.file:
-        print("Installing " + args.file + " theme.")
+        print(f"Installing {args.file} theme.")
         set_theme(args.file)
     else:
         browse_app()
@@ -43,6 +40,14 @@ def scmd_revert(_):
     scmd_clear([])
     os.remove(get_themedir())
     os.system("beaudis --revert")
+
+
+def scmd_cat(_):
+    try:
+        with open(os.path.join(get_themes_dir(), "__current.css"), 'r') as f:
+            print(f.read())
+    except FileNotFoundError:
+        print('Execute "bdtheme init" first.')
 
 
 def cmd_bdtheme():
@@ -72,6 +77,9 @@ def cmd_bdtheme():
     p_revert = subparsers.add_parser(
         "revert", help="Remove BeautifulDiscord .css hot-reload.")
     p_revert.set_defaults(func=scmd_revert)
+
+    p_cat = subparsers.add_parser("cat", help="Print out current .css theme.")
+    p_cat.set_defaults(func=scmd_cat)
 
     args = parser.parse_args()
     args.func(args)

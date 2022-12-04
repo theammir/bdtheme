@@ -6,19 +6,22 @@ requirements = ["bs4", "requests", "lxml",
 if sys.platform == "win32":
     requirements.append("windows-curses")
 
-setup(
-    name="bdtheme",
-    author="TheAmmiR",
-    license="MIT",
-    description="Console BeautifulDiscord theme manager",
-    version="1.3.1",
-    packages=find_packages(
-        exclude=["themes", "venv"]),
-    install_requires=requirements,
-    python_requires=">=3.8",
-    entry_points={
-        "console_scripts": [
-            "bdtheme=bdtheme.src.main:cmd_bdtheme"
-        ]
-    }
-)
+with open("README.md", "r") as readme:
+    setup(
+        name="bdtheme",
+        author="TheAmmiR",
+        license="MIT",
+        description="Console BeautifulDiscord theme manager",
+        long_description=readme.read(),
+        long_description_content_type='text/markdown',
+        version="1.3.22",
+        packages=find_packages(
+            exclude=["themes", "venv"]),
+        install_requires=requirements,
+        python_requires=">=3.8",
+        entry_points={
+            "console_scripts": [
+                "bdtheme=bdtheme.src.main:cmd_bdtheme"
+            ]
+        }
+    )

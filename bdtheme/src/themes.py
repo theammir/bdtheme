@@ -53,7 +53,7 @@ class Paginator:
         result = []
         remaining = self.pagesize
 
-        while not remaining == 0:
+        while remaining != 0:
             page_part = self._coll[:remaining]
             result += page_part
             self._coll = self._coll[remaining:]
@@ -62,10 +62,10 @@ class Paginator:
             if not self._coll:
                 self.parsepage += 1
                 self._coll = self.retrieve_new(self.parsepage)
-                if not self._coll:
-                    if result:
-                        break
-                    return result
+            if not self._coll:
+                if result:
+                    break
+                return result
 
         if result:
             self.pages_cache[self.page + 1] = result
@@ -110,7 +110,10 @@ def parse_vsthemes_list(page: int = 1) -> List[Theme]:
 
     result = []
     for el in theme_elements:
-        name = el.find_all("a")[1].text
+        try:
+            name = el.find_all("div")[2].find("a").text
+        except IndexError:
+            continue
         img_url = "https://vsthemes.org" + el.find("img").get("src")
         theme_url = el.find("a").get("href")
         views, _, likes = el.find("ul", {"class": "iOptions"}).find_all("span")
@@ -154,10 +157,10 @@ def parse_better_list(page: int, pages: int = 10):
         likes = el.find("div", {"id": "addon-likes"}
                         ).text.strip().replace(",", "")
 
-        views = int(float(views[:-1]) * abbrevs[views[-1].lower()
-                                                ]) if not views.isdigit() else int(views)
-        likes = int(float(likes[:-1]) * abbrevs[likes[-1].lower()
-                                                ]) if not likes.isdigit() else int(likes)
+        views = int(views) if views.isdigit() else int(float(views[:-1]) * abbrevs[views[-1].lower()])
+
+        likes = int(likes) if likes.isdigit() else int(float(likes[:-1]) * abbrevs[likes[-1].lower()])
+
 
         result.append(Theme(name, img_url=img_url,
                       url=theme_url, likes=likes, views=views, css=parse_better_css, source="bd"))
@@ -180,7 +183,10 @@ def parse_better_css(url: str) -> None:
 def save_theme(theme: Theme) -> None:
     themes_dir = get_themes_dir()
     theme_css = theme.css(theme.url)
+    # with open(os.path.join(os.path.dirname(__file__), "fix.css"), "r") as f:
+    #     fix_css = f.read()
     with open(os.path.join(themes_dir, f"{uuid.uuid4()}.css"), "a+", encoding="utf-8") as f:
         f.write(f"/* <{theme.name}> @ {theme.source} */\n")
+        # f.write(fix_css)
         f.write("\n".join(list(filter(lambda i: not i.lower(
         ).startswith("//meta"), theme_css.split("\n")))))
